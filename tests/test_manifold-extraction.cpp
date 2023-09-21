@@ -6,7 +6,8 @@
 TEST_CASE("Manifold-Extraction2D", "[man-ext2d]"){
     
     using namespace wmtk;
-    const std::vector<Point2D>& points = pntgen();
+    size_t nb_points = 10;
+    const std::vector<Point2D>& points = pntgen(nb_points);
     auto [vertices, triangles] = delaunay2D(points);
     std::map<size_t, size_t>& tagass = tagassign(triangles);
 

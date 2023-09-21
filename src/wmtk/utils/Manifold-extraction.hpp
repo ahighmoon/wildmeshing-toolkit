@@ -15,12 +15,12 @@ using Point2D = std::array<double, 2>;
 using Triangle = std::array<size_t, 3>;
 
 /**
- * Generate 100 random points in 2D square domain
+ * Generate some given number of random points in 2D square domain
  *
  * @returns A vector of Point2D type.
  *
  */
-auto pntgen() -> const std::vector<Point2D>&;
+auto pntgen(size_t nb_points) -> const std::vector<Point2D>&;
 auto tagassign(std::vector<Triangle> triangles)
     -> std::map<size_t, size_t>&;
 } // namespace wmtk

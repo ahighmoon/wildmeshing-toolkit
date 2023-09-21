@@ -1,9 +1,7 @@
 #include "Manifold-extraction.hpp"
 
 namespace wmtk {
-    auto pntgen() -> const std::vector<wmtk::Point2D>&{
-
-        static size_t nb_points = 10;
+    auto pntgen(size_t nb_points) -> const std::vector<wmtk::Point2D>&{
         static std::vector<Point2D> points(nb_points);
         
         // seed of random gen is 10 
