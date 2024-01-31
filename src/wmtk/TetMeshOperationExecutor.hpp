@@ -1,126 +1,25 @@
 #pragma once
+#include <wmtk/operations/tet_mesh/EdgeOperationData.hpp>
 #include <wmtk/utils/Logger.hpp>
-#include "SimplicialComplex.hpp"
 #include "TetMesh.hpp"
 #include "Tuple.hpp"
 namespace wmtk {
-class TetMesh::TetMeshOperationExecutor
+class TetMesh::TetMeshOperationExecutor : public operations::tet_mesh::EdgeOperationData
 {
 public:
-    TetMeshOperationExecutor(TetMesh& m, const Tuple& operating_tuple, Accessor<long>& hash_acc);
+    TetMeshOperationExecutor(TetMesh& m, const Tuple& operating_tuple, Accessor<int64_t>& hash_acc);
     void delete_simplices();
     void update_cell_hash();
 
     std::array<Accessor<char>, 4> flag_accessors;
-    Accessor<long> tt_accessor;
-    Accessor<long> tf_accessor;
-    Accessor<long> te_accessor;
-    Accessor<long> tv_accessor;
-    Accessor<long> vt_accessor;
-    Accessor<long> et_accessor;
-    Accessor<long> ft_accessor;
-    Accessor<long>& hash_accessor;
-
-    //
-    // E --------------- C --------------- F
-    //   \-_           / | \           _-/
-    //    \  EarTet   /  |  \   EarTet  /
-    //     \  tid1   /   |   \   tid2  /
-    //      \     -_/fid1|fid2\_-     /
-    //       \     / --_ | _-- \     /
-    //        \   /  __- D -__  \   /
-    //         \ /_--         --_\ /
-    //         A ================= B
-    //            operating edge
-    //
-
-    /**
-     * An EarTet is a neighbor of a tet to be deleted in the split/collapse operation
-     *
-     */
-    struct EarTet
-    {
-        long tid = -1; // global tid of the ear, -1 if it doesn't exist
-        long fid = -1; // global fid of the ear, -1 if it doesn't exist
-    };
-
-    /**
-     *  Data on the incident tets of the operating edge
-     */
-    struct IncidentTetData
-    {
-        long tid = -1;
-        std::array<EarTet, 2> ears;
-    };
-
-    /**
-     * @brief structs for split (to be merge with collapse)
-     *
-     */
-
-    struct FaceSplitData
-    {
-        long fid_old = -1;
-        long fid_new_1 = -1;
-        long fid_new_2 = -1;
-        long eid_spine_old = -1;
-        long eid_spine_1 = -1;
-        long eid_spine_2 = -1;
-        long eid_split = -1;
-    };
-
-    /*
-               v3
-               /\\
-        ear1  /  \ \   ear2
-             /    \  \
-            /      \   \
-           /        \    \
-          /          \     \
-         /            \     _\ v4
-        /______________\_ -
-       v1     e12       v2
-    */
-
-    struct TetSplitData
-    {
-        long tid_old = -1;
-        long tid_new_1 = -1;
-        long tid_new_2 = -1;
-        long fid_split = -1;
-        long v1;
-        long v2;
-        long v3;
-        long v4;
-        long e12;
-        long e13;
-        long e14;
-        long e23;
-        long e24;
-        long e34;
-
-        EarTet ear_tet_1; // switch edge switch face
-        EarTet ear_tet_2; // switch vertex switch edge switch face
-        std::array<FaceSplitData, 2> new_face_data;
-    };
-
-    struct TetCollapseData
-    {
-        long tid_old = -1;
-        long v1;
-        long v2;
-        long v3;
-        long v4;
-        long e12;
-        long e13;
-        long e14;
-        long e23;
-        long e24;
-        long e34;
-
-        EarTet ear_tet_1; // switch edge switch face
-        EarTet ear_tet_2; // switch vertex switch edge switch face
-    };
+    Accessor<int64_t> tt_accessor;
+    Accessor<int64_t> tf_accessor;
+    Accessor<int64_t> te_accessor;
+    Accessor<int64_t> tv_accessor;
+    Accessor<int64_t> vt_accessor;
+    Accessor<int64_t> et_accessor;
+    Accessor<int64_t> ft_accessor;
+    Accessor<int64_t>& hash_accessor;
 
 
     /**
@@ -129,7 +28,7 @@ public:
      * The deleted simplices are the one ring tets AND the one ring faces of the edge AND the edge
      * itself. That is, the open star of the edge.
      */
-    static const std::array<std::vector<long>, 4> get_split_simplices_to_delete(
+    static const std::array<std::vector<int64_t>, 4> get_split_simplices_to_delete(
         const Tuple& tuple,
         const TetMesh& m);
 
@@ -144,20 +43,18 @@ public:
      *
      * For boundary case:
      * Same as above.
+     *
+     * @return a pair of vector of ids (int64_t) and tuples(tuple)
      */
-    static const std::array<std::vector<long>, 4> get_collapse_simplices_to_delete(
+    static const std::array<std::vector<int64_t>, 4> get_collapse_simplices_to_delete(
         const Tuple& tuple,
         const TetMesh& m);
 
     void update_ear_connectivity(
-        const long ear_tid,
-        const long new_tid,
-        const long old_tid,
-        const long common_fid);
-
-    const std::array<long, 2>& incident_vids() const { return m_spine_vids; }
-
-    const long operating_edge_id() const { return m_operating_edge_id; }
+        const int64_t ear_tid,
+        const int64_t new_tid,
+        const int64_t old_tid,
+        const int64_t common_fid);
 
 
     /*
@@ -181,10 +78,10 @@ public:
      *
      * This function will return the tuple that has: the same vertex as the input, a new edge
      * along the input edge, a new face on the input face, and a new tet with is half of the input
-     * tet. In the illustration it will return Tuple(v1, v1-v_new, v1-v_new-v4, v1-v_new-v4-v3)
+     * tet. In the illustration it will return Tuple(v_new, v_new-v2, v_new-v2-v4, v_new-v2-v4-v3)
      *
      */
-    Tuple split_edge();
+    void split_edge();
 
     /**
      * @brief split edge v1-v2
@@ -204,28 +101,15 @@ public:
      * link condition user level? *should return a invalid tuple if no ears?*).
      *
      */
-    Tuple collapse_edge();
+    void collapse_edge();
 
-    std::vector<long> request_simplex_indices(const PrimitiveType type, long count);
+    std::vector<int64_t> request_simplex_indices(const PrimitiveType type, int64_t count);
 
-    std::array<std::vector<long>, 4> simplex_ids_to_delete;
-    std::vector<long> cell_ids_to_update_hash;
 
     TetMesh& m_mesh;
-    Tuple m_operating_tuple;
-
 
 private:
-    // common simplices
-    std::array<long, 2> m_spine_vids; // two endpoints of the edge
-    long m_operating_edge_id;
-    long m_operating_face_id;
-    long m_operating_tet_id;
-
-    // simplices required per-tet
-    std::vector<IncidentTetData> m_incident_tet_datas;
-
-    IncidentTetData get_incident_tet_data(Tuple t);
+    // IncidentTetData get_incident_tet_data(Tuple t);
 
 
 public:

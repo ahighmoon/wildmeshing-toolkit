@@ -4,11 +4,9 @@ on:
   push:
     branches:
       - main
-      - hackathon/dev
   pull_request:
     branches:
       - main
-      - hackathon/dev
 
 env:
   CTEST_OUTPUT_ON_FAILURE: ON
@@ -33,7 +31,7 @@ jobs:
             name: Linux
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4.1.1
         with:
           fetch-depth: 10
 
@@ -46,12 +44,12 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ${{ env.CACHE_PATH }}
-          key: ${{ runner.os }}-${{ matrix.config }}-${{ matrix.tbb }}-cache-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-${{ matrix.config }}-${{ matrix.tbb }}-cache
+          key: ${{ runner.os }}-${{ matrix.config }}-cache-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-${{ matrix.config }}-cache
 
       - name: Prepare ccache
         run: |
-          ccache --max-size=20.0G
+          ccache --max-size=10.0G
           ccache -V && ccache --show-stats && ccache --zero-stats
 
       - name: Configure
@@ -88,7 +86,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4.1.1
         with:
           fetch-depth: 10
 
@@ -96,17 +94,17 @@ jobs:
         run: |
           echo 'CACHE_PATH=~/Library/Caches/ccache' >> "$GITHUB_ENV"
 
-      - name: Cache Build
-        id: cache-build
-        uses: actions/cache@v2
-        with:
-          path: ${{ env.CACHE_PATH }}
-          key: ${{ runner.os }}-${{ matrix.config }}-${{ matrix.arch }}-${{ matrix.tbb }}-cache-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-${{ matrix.config }}-${{ matrix.arch }}-${{ matrix.tbb }}-cache
+          #- name: Cache Build
+          #  id: cache-build
+          #  uses: actions/cache@v2
+          #  with:
+          #    path: ${{ env.CACHE_PATH }}
+          #    key: ${{ runner.os }}-${{ matrix.config }}-${{ matrix.arch }}-cache-${{ github.sha }}
+          #    restore-keys: ${{ runner.os }}-${{ matrix.config }}-${{ matrix.arch }}-cache
 
       - name: Prepare ccache
         run: |
-          ccache --max-size=20.0G
+          ccache --max-size=10.0G
           ccache -V && ccache --show-stats && ccache --zero-stats
 
       - name: Configure
@@ -143,10 +141,10 @@ jobs:
         config: [Debug, Release]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4.1.1
         with:
           fetch-depth: 10
-         
+
       - name: Configure and build
         shell: cmd
         run: |

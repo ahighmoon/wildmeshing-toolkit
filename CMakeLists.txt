@@ -47,19 +47,26 @@ project(WildMeshingToolkit DESCRIPTION "A mesh optimization toolkit" LANGUAGES C
 option(WMTK_BUILD_DOCS "Build doxygen" OFF)
 option (BUILD_SHARED_LIBS "Build Shared Libraries" OFF) # we globally want to disable this option due to use of TBB
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/recipes/")
+option(WMTK_CODE_COVERAGE "Enable coverage reporting" OFF)
 
-# check if Perl is installed (required by HDF5 but not set as required there)
-find_package (Perl REQUIRED)
+add_library(wmtk_coverage_config INTERFACE)
+if(WMTK_CODE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  # Add required flags (GCC & LLVM/Clang)
+  target_compile_options(wmtk_coverage_config INTERFACE
+    -g         # generate debug info
+    --coverage # sets all required flags
+  )
+  target_link_options(wmtk_coverage_config INTERFACE --coverage)
+endif()
+
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/recipes/")
 
 include(sanitizers)
+include(wmtk_cpm_cache)
 include(wmtk_colors)
 include(wmtk_warnings)
 include(wmtk_copy_dll)
-include(tracy)
-# Utility function to link libraries as system libraries to avoid warnings
-include(WMTKTargetLinkSystemLibraries)
 
 # Sort projects inside the solution
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -72,22 +79,23 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # ###############################################################################
 
 # Dependencies
-include(libigl)
-include(spdlog)
 include(paraviewo)
-include(geogram)
-include(onetbb)
-include(mshio)
-include(metis)
+include(spdlog)
 include(gmp)
-include(probabilistic_quadrics)
-
-include(lagrange)
-lagrange_include_modules(bvh)
+include(mshio)
+include(predicates)
+include(polysolve)
+include(fast_envelope)
+include(bvh)
+include(volume_mesher)
 
 # Core library
 add_library(wildmeshing_toolkit)
 add_library(wmtk::toolkit ALIAS wildmeshing_toolkit)
+target_link_libraries(wildmeshing_toolkit PUBLIC wmtk_coverage_config)
+set_property(TARGET wildmeshing_toolkit PROPERTY COMPILE_WARNING_AS_ERROR  ON)
+
+
 add_subdirectory(src)
 
 # Group source files for IDEs
@@ -104,24 +112,57 @@ target_compile_features(wildmeshing_toolkit PUBLIC cxx_std_17)
 
 #target_compile_options(wildmeshing_toolkit PUBLIC  -fconcepts)
 
+# the max dimension an attribute can be - default is to be any size (a dynamic size), but this can be set to a number like 6
+set(WMTK_MAX_ATTRIBUTE_DIMENSION Eigen::Dynamic CACHE STRING "Set the largest size a vector can be in an attribute")
+target_compile_definitions(wildmeshing_toolkit PUBLIC WMTK_MAX_ATTRIBUTE_DIMENSION=${WMTK_MAX_ATTRIBUTE_DIMENSION})
+
+
+
+option(WMTK_USE_MONOTONIC_ATTRIBUTE_CACHE "Use monotonic allocator to store the cache buffer" OFF)
+if(WMTK_USE_MONOTONIC_ATTRIBUTE_CACHE)
+    target_compile_definitions(wildmeshing_toolkit PRIVATE WMTK_USE_MONOTONIC_ATTRIBUTE_CACHE)
+endif()
+
+option(WMTK_ONLY_CACHE_WRITES "Cache only stores writeable data" ON)
+if(WMTK_ONLY_CACHE_WRITES)
+    target_compile_definitions(wildmeshing_toolkit PRIVATE WMTK_ONLY_CACHE_WRITES)
+endif()
+
+option(WMTK_FLUSH_ON_FAIL "Cache where failure " ON)
+if(WMTK_FLUSH_ON_FAIL)
+    target_compile_definitions(wildmeshing_toolkit PUBLIC WMTK_FLUSH_ON_FAIL)
+endif()
+option(WMTK_ENABLE_GENERIC_CHECKPOINTS "Enable checkpoint selection" OFF)
+if(WMTK_ENABLE_GENERIC_CHECKPOINTS)
+    target_compile_definitions(wildmeshing_toolkit PRIVATE WMTK_ENABLE_GENERIC_CHECKPOINTS)
+endif()
 
 target_link_libraries(wildmeshing_toolkit PRIVATE wmtk::warnings)
-wmtk_target_link_system_libraries(wildmeshing_toolkit PUBLIC
+target_link_libraries(wildmeshing_toolkit PUBLIC
     spdlog::spdlog
-    igl::core
-    igl::predicates
-    geogram
-    TBB::tbb
-    mshio::mshio
-    lagrange::core
-    Tracy::TracyClient
-    lagrange::bvh
-    probabilistic_quadrics::probabilistic_quadrics
     paraviewo::paraviewo
     gmp::gmp
+    mshio::mshio
+    predicates::predicates
+    nlohmann_json::nlohmann_json
+    polysolve::polysolve
+    FastEnvelope::FastEnvelope
+    simple_bvh::simple_bvh
+    VolumeRemesher::VolumeRemesher
+
 )
 
-include(nlohmann_json)
+
+if(MSVC)
+    target_compile_options(wildmeshing_toolkit PUBLIC /MP)
+    target_compile_options(wildmeshing_toolkit PUBLIC $<$<CONFIG:RELWITHDEBINFO>:/GL>)
+endif()
+
+if(WILDMESHING_TOOLKIT_TOPLEVEL_PROJECT)
+    # Unit tests
+    enable_testing()
+endif()
+
 
 add_subdirectory(components)
 
@@ -129,17 +170,6 @@ add_subdirectory(components)
 # ###############################################################################
 # Subdirectories
 # ###############################################################################
-
-# Compile extras only if this is a top-level project
-if(WILDMESHING_TOOLKIT_TOPLEVEL_PROJECT)
-    # Binary
-    add_subdirectory(wmtk_app)
-
-    # Unit tests
-    enable_testing()
-
-    add_subdirectory(tests)
-endif()
 
 if(WMTK_BUILD_DOCS)
     # check if Doxygen is installed
@@ -163,4 +193,32 @@ if(WMTK_BUILD_DOCS)
     else(DOXYGEN_FOUND)
         message("Doxygen need to be installed to generate the doxygen documentation")
     endif(DOXYGEN_FOUND)
+endif()
+
+
+# Compile extras only if this is a top-level project
+if(WILDMESHING_TOOLKIT_TOPLEVEL_PROJECT)
+    add_subdirectory(tests)
+
+
+    add_executable(wmtk_app main.cpp)
+    target_compile_features(wmtk_app PUBLIC cxx_std_17)
+
+    # ###############################################################################
+    # WMTK JSON APP
+    # ###############################################################################
+    target_compile_options(wmtk_app PRIVATE "-rdynamic")
+    target_link_libraries(wmtk_app PUBLIC
+        wmtk::components
+        CLI11::CLI11
+    )
+
+
+    if(MSVC)
+        target_compile_options(wmtk_app PUBLIC /MP)
+        target_compile_options(wmtk_app PUBLIC $<$<CONFIG:RELWITHDEBINFO>:/GL>)
+        target_link_options(wmtk_app PRIVATE $<$<CONFIG:RELWITHDEBINFO>:/LTCG>)
+        target_link_options(wmtk_app PRIVATE $<$<CONFIG:RELWITHDEBINFO>:/INCREMENTAL:NO>)
+    endif()
+
 endif()

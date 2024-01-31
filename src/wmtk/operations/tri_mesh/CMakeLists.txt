@@ -1,21 +1,11 @@
 set(SRC_FILES
-    TriMeshOperation.hpp
-    TriMeshOperation.cpp
-    EdgeSplit.hpp
-    EdgeSplit.cpp
-    EdgeSplitAtMidpoint.hpp
-    EdgeSplitAtMidpoint.cpp
-    EdgeCollapse.hpp
-    EdgeCollapse.cpp
-    EdgeCollapseToMidpoint.hpp
-    EdgeCollapseToMidpoint.cpp
-    EdgeSwap.hpp
-    EdgeSwap.cpp
-    VertexAttributesUpdateBase.hpp
-    VertexAttributesUpdateBase.cpp
-    VertexLaplacianSmooth.hpp
-    VertexLaplacianSmooth.cpp
-    VertexTangentialLaplacianSmooth.hpp
-    VertexTangentialLaplacianSmooth.cpp
+    EdgeOperationData.hpp
+    EdgeOperationData.cpp
+
+    CollapseNewAttributeTopoInfo.hpp
+    CollapseNewAttributeTopoInfo.cpp
+
+    SplitNewAttributeTopoInfo.hpp
+    SplitNewAttributeTopoInfo.cpp
 )
 target_sources(wildmeshing_toolkit PRIVATE ${SRC_FILES})

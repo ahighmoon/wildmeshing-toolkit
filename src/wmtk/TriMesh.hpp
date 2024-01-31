@@ -1,38 +1,33 @@
 #pragma once
 
+#include <wmtk/operations/tri_mesh/EdgeOperationData.hpp>
 #include "Mesh.hpp"
 #include "Tuple.hpp"
 
 #include <Eigen/Core>
 
 namespace wmtk {
+namespace operations::utils {
+class MultiMeshEdgeSplitFunctor;
+class MultiMeshEdgeCollapseFunctor;
+class UpdateEdgeOperationMultiMeshMapFunctor;
+} // namespace operations::utils
+
 
 class TriMesh : public Mesh
 {
 public:
+    friend class operations::utils::MultiMeshEdgeCollapseFunctor;
+    friend class operations::utils::MultiMeshEdgeSplitFunctor;
+    friend class operations::utils::UpdateEdgeOperationMultiMeshMapFunctor;
     TriMesh();
-    TriMesh(const TriMesh& o);
+    TriMesh(const TriMesh& o) = delete;
+    TriMesh& operator=(const TriMesh& o) = delete;
     TriMesh(TriMesh&& o);
-    TriMesh& operator=(const TriMesh& o);
     TriMesh& operator=(TriMesh&& o);
+    void make_cached_accessors();
 
-    PrimitiveType top_simplex_type() const override { return PrimitiveType::Face; }
-    /**
-     * @brief split edge t
-     *
-     * The returned tuple contains the new vertex. The face lies in the region where the input tuple
-     * face was, and the edge is oriented in the same direction as in the input.
-     */
-    Tuple split_edge(const Tuple& t, Accessor<long>& hash_accessor) override;
-    /**
-     * @brief collapse edge t
-     *
-     * The vertex in t is collapsed towards the one where the tuple is pointing to.
-     * The returned tuple contains the remaining vertex. The edge represents the face of t that was
-     * collapsed. The face is chosen such that the orientation of the tuple is the same as in the
-     * input. If this is not possible due to a boundary, the opposite face is chosen.
-     */
-    Tuple collapse_edge(const Tuple& t, Accessor<long>& hash_accessor) override;
+    int64_t top_cell_dimension() const override { return 2; }
 
     Tuple switch_tuple(const Tuple& tuple, PrimitiveType type) const override;
 
@@ -46,9 +41,10 @@ public:
     Tuple prev_edge(const Tuple& tuple) const { return switch_vertex(switch_edge(tuple)); }
 
     bool is_ccw(const Tuple& tuple) const override;
-    bool is_boundary(const Tuple& tuple) const override;
-    bool is_boundary_vertex(const Tuple& tuple) const override;
-    bool is_boundary_edge(const Tuple& tuple) const override;
+    using Mesh::is_boundary;
+    bool is_boundary(PrimitiveType pt, const Tuple& tuple) const override;
+    bool is_boundary_vertex(const Tuple& tuple) const;
+    bool is_boundary_edge(const Tuple& tuple) const;
 
     void initialize(
         Eigen::Ref<const RowVectors3l> FV,
@@ -58,23 +54,23 @@ public:
         Eigen::Ref<const VectorXl> EF);
     void initialize(Eigen::Ref<const RowVectors3l> F);
 
-    long _debug_id(const Tuple& tuple, PrimitiveType type) const;
-    long _debug_id(const Simplex& simplex) const
-    {
-        return _debug_id(simplex.tuple(), simplex.primitive_type());
-    }
-
-    bool is_valid(const Tuple& tuple, ConstAccessor<long>& hash_accessor) const override;
+    bool is_valid(const Tuple& tuple, ConstAccessor<int64_t>& hash_accessor) const override;
 
     bool is_connectivity_valid() const override;
 
-protected:
-    long id(const Tuple& tuple, PrimitiveType type) const override;
-    long id(const Simplex& simplex) const { return id(simplex.tuple(), simplex.primitive_type()); }
+    std::vector<std::vector<TypedAttributeHandle<int64_t>>> connectivity_attributes()
+        const override;
 
-    long id_vertex(const Tuple& tuple) const { return id(tuple, PrimitiveType::Vertex); }
-    long id_edge(const Tuple& tuple) const { return id(tuple, PrimitiveType::Edge); }
-    long id_face(const Tuple& tuple) const { return id(tuple, PrimitiveType::Face); }
+protected:
+    int64_t id(const Tuple& tuple, PrimitiveType type) const override;
+    int64_t id(const simplex::Simplex& simplex) const
+    {
+        return id(simplex.tuple(), simplex.primitive_type());
+    }
+
+    int64_t id_vertex(const Tuple& tuple) const { return id(tuple, PrimitiveType::Vertex); }
+    int64_t id_edge(const Tuple& tuple) const { return id(tuple, PrimitiveType::Edge); }
+    int64_t id_face(const Tuple& tuple) const { return id(tuple, PrimitiveType::Face); }
 
     /**
      * @brief internal function that returns the tuple of requested type, and has the global index
@@ -83,23 +79,31 @@ protected:
      * @param gid
      * @return Tuple
      */
-    Tuple tuple_from_id(const PrimitiveType type, const long gid) const override;
+    Tuple tuple_from_id(const PrimitiveType type, const int64_t gid) const override;
+    Tuple tuple_from_global_ids(int64_t fid, int64_t eid, int64_t vid) const;
 
 protected:
-    attribute::MeshAttributeHandle<long> m_vf_handle;
-    attribute::MeshAttributeHandle<long> m_ef_handle;
+    attribute::TypedAttributeHandle<int64_t> m_vf_handle;
+    attribute::TypedAttributeHandle<int64_t> m_ef_handle;
 
-    attribute::MeshAttributeHandle<long> m_fv_handle;
-    attribute::MeshAttributeHandle<long> m_fe_handle;
-    attribute::MeshAttributeHandle<long> m_ff_handle;
+    attribute::TypedAttributeHandle<int64_t> m_fv_handle;
+    attribute::TypedAttributeHandle<int64_t> m_fe_handle;
+    attribute::TypedAttributeHandle<int64_t> m_ff_handle;
 
-    Tuple vertex_tuple_from_id(long id) const;
-    Tuple edge_tuple_from_id(long id) const;
-    Tuple face_tuple_from_id(long id) const;
+    std::unique_ptr<attribute::MutableAccessor<int64_t>> m_vf_accessor = nullptr;
+    std::unique_ptr<attribute::MutableAccessor<int64_t>> m_ef_accessor = nullptr;
+    std::unique_ptr<attribute::MutableAccessor<int64_t>> m_fv_accessor = nullptr;
+    std::unique_ptr<attribute::MutableAccessor<int64_t>> m_fe_accessor = nullptr;
+    std::unique_ptr<attribute::MutableAccessor<int64_t>> m_ff_accessor = nullptr;
 
-    // internal structure that encapsulations the actual execution of split and collapse
+
+    Tuple vertex_tuple_from_id(int64_t id) const;
+    Tuple edge_tuple_from_id(int64_t id) const;
+    Tuple face_tuple_from_id(int64_t id) const;
+
+
     class TriMeshOperationExecutor;
-    static Tuple with_different_cid(const Tuple& t, long cid);
+    static Tuple with_different_cid(const Tuple& t, int64_t cid);
 };
 
 } // namespace wmtk

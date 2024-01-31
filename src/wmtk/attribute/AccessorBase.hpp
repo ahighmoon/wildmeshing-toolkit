@@ -3,12 +3,15 @@
 #include <memory>
 #include <type_traits>
 #include "Attribute.hpp"
-#include "AttributeHandle.hpp"
+#include "MeshAttributeHandle.hpp"
 #include "wmtk/Tuple.hpp"
 #include "wmtk/Types.hpp"
 
 #include <Eigen/Dense>
 
+namespace wmtk {
+class AttributeManager;
+}
 namespace wmtk::attribute {
 
 template <typename T>
@@ -28,23 +31,26 @@ public:
     using MeshAttributesType = MeshAttributes<T>;
     using AttributeType = Attribute<T>;
 
-    using MapResult = typename VectorX<T>::MapType;
-    using ConstMapResult = typename VectorX<T>::ConstMapType;
+    using MapResult = typename Attribute<T>::MapResult;
+    using ConstMapResult = typename Attribute<T>::ConstMapResult;
 
 
 public:
     // returns the size of the underlying attribute
-    long reserved_size() const;
-    long dimension() const;
+    int64_t reserved_size() const;
+    int64_t dimension() const;
 
 
     void set_attribute(std::vector<T> value);
 
-    ConstMapResult const_vector_attribute(const long index) const;
-    MapResult vector_attribute(const long index);
+    ConstMapResult const_vector_attribute(const int64_t index) const;
+    MapResult vector_attribute(const int64_t index);
 
-    T const_scalar_attribute(const long index) const;
-    T& scalar_attribute(const long index);
+    T const_scalar_attribute(const int64_t index) const;
+    T& scalar_attribute(const int64_t index);
+
+    T const_scalar_attribute(const int64_t index, const int8_t offset) const;
+    T& scalar_attribute(const int64_t index, const int8_t offset);
 
     MeshAttributes<T>& attributes();
     const MeshAttributes<T>& attributes() const;
@@ -54,9 +60,10 @@ public:
 
 
     ~AccessorBase();
-    AccessorBase(Mesh& m, const MeshAttributeHandle<T>& handle);
+    AccessorBase(Mesh& m, const TypedAttributeHandle<T>& handle);
 
-    const MeshAttributeHandle<T>& handle() const;
+    MeshAttributeHandle handle() const;
+    const TypedAttributeHandle<T>& typed_handle() const;
     PrimitiveType primitive_type() const;
 
     Mesh& mesh();
@@ -64,8 +71,8 @@ public:
 
 
 protected:
+    TypedAttributeHandle<T> m_handle;
     Mesh& m_mesh;
-    MeshAttributeHandle<T> m_handle;
 
     const AttributeManager& attribute_manager() const;
     AttributeManager& attribute_manager();
@@ -73,3 +80,4 @@ protected:
 
 
 } // namespace wmtk::attribute
+#include "AccessorBase.hxx"

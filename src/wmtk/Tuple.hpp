@@ -1,16 +1,20 @@
 #pragma once
 
-#include "Primitive.hpp"
+#include "PrimitiveType.hpp"
 
 
 namespace wmtk {
 
 class Mesh;
 class PointMesh;
-class EdgeMesh;
 class TriMesh;
+class EdgeMesh;
 class TetMesh;
-namespace autogen::utils {
+namespace attribute {
+template <typename T>
+class TupleAccessor;
+}
+namespace utils {
 class TupleInspector;
 }
 namespace operations {
@@ -27,11 +31,11 @@ class Tuple
 private:
     // if Tuple is in 2d mesh m_global_cid is the global triangle id, and local_fid is -1
     // if Tuple is in 3d mesh m_global_cid is the global tetrahedron id
-    long m_local_vid = -1;
-    long m_local_eid = -1;
-    long m_local_fid = -1;
-    long m_global_cid = -1;
-    long m_hash = -1;
+    int8_t m_local_vid = -1;
+    int8_t m_local_eid = -1;
+    int8_t m_local_fid = -1;
+    int8_t m_hash = -1;
+    int64_t m_global_cid = -1;
 
 public:
     friend class Mesh;
@@ -39,15 +43,17 @@ public:
     friend class EdgeMesh;
     friend class TriMesh;
     friend class TetMesh;
-    friend class operations::Operation;
     friend class MultiMeshManager;
+    template <typename T>
+    friend class attribute::TupleAccessor;
+    friend class operations::Operation;
     friend class utils::TupleCellLessThan;
-    friend class autogen::utils::TupleInspector;
-    // friend long Mesh::id(const Tuple& tuple, const PrimitiveType& type) const;
+    friend class utils::TupleInspector;
+    // friend int64_t Mesh::id(const Tuple& tuple, const PrimitiveType& type) const;
     // friend Mesh::is_ccw(const Tuple& tuple) const;
     // friend Mesh::switch_tuple(const Tuple& tuple, const PrimitiveType& type) const;
 
-    Tuple(long local_vid, long local_eid, long local_fid, long global_cid, long hash);
+    Tuple(int8_t local_vid, int8_t local_eid, int8_t local_fid, int64_t global_cid, int8_t hash);
 
     //         v2
     //       /    \.
@@ -68,6 +74,6 @@ public:
     bool same_ids(const Tuple& t) const;
 
     bool is_null() const;
-    Tuple with_updated_hash(long new_hash) const;
+    Tuple with_updated_hash(int64_t new_hash) const;
 };
 } // namespace wmtk

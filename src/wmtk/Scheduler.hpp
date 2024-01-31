@@ -1,68 +1,68 @@
 #pragma once
-#include <string_view>
-#include <unordered_map>
-#include "Mesh.hpp"
-#include "operations/Operation.hpp"
-#include "operations/OperationFactory.hpp"
 
+#include "operations/Operation.hpp"
 
 namespace wmtk {
 
-//  Scheduler scheduler;
-// if (use_basic_split) {
-//     scheduler.add_operation_type<SplitEdgeOperation>("split_edge");
-// } else if (use_seamed_mesh_split) {
-//     scheduler.add_operation_type<SeamedTriMeshSplitEdgeOperation>("split_edge");
-// }
+class SchedulerStats
+{
+public:
+    /**
+     * @brief Returns the number of successful operations performed by the scheduler.
+     *
+     * The value is reset to 0 when calling `run_operation_on_all`.
+     */
+    int64_t number_of_successful_operations() const { return m_num_op_success; }
 
-namespace operations {
-class OperationQueue;
-}
+    /**
+     * @brief Returns the number of failed operations performed by the scheduler.
+     *
+     * The value is reset to 0 when calling `run_operation_on_all`.
+     */
+    int64_t number_of_failed_operations() const { return m_num_op_fail; }
+
+    /**
+     * @brief Returns the number of performed operations performed by the scheduler.
+     *
+     * The value is reset to 0 when calling `run_operation_on_all`.
+     */
+    int64_t number_of_performed_operations() const { return m_num_op_success + m_num_op_fail; }
+
+    inline void succeed() { ++m_num_op_success; }
+    inline void fail() { ++m_num_op_fail; }
+
+    inline void operator+=(const SchedulerStats& s)
+    {
+        m_num_op_success += s.m_num_op_success;
+        m_num_op_fail += s.m_num_op_fail;
+
+        collecting_time += s.collecting_time;
+        sorting_time += s.sorting_time;
+        executing_time += s.executing_time;
+    }
+
+
+    double collecting_time = 0;
+    double sorting_time = 0;
+    double executing_time = 0;
+
+private:
+    int64_t m_num_op_success = 0;
+    int64_t m_num_op_fail = 0;
+};
+
 class Scheduler
 {
 public:
-    Scheduler(Mesh& m);
+    Scheduler();
     ~Scheduler();
-    // user specifies a sort of operation they want
-    // template <typename OperationType, typename... Args>
-    // void add_operation_type(const std::string& name, PrimitiveType primitive_type, Args... args)
-    //{
-    //    m_factories[name] = std::make_unique<OperationFactory<OperationType>>(
-    //        primitive_type,
-    //        std::forward<Args>(args)...);
-    //}
-    template <typename OperationType>
-    void add_operation_type(const std::string& name)
-    {
-        m_factories[name] = std::make_unique<operations::OperationFactory<OperationType>>();
-    }
 
-    template <typename OperationType>
-    void add_operation_type(
-        const std::string& name,
-        const operations::OperationSettings<OperationType>& settings)
-    {
-        m_factories[name] = std::make_unique<operations::OperationFactory<OperationType>>(settings);
-    }
+    SchedulerStats run_operation_on_all(operations::Operation& op);
 
-    void enqueue_operations(std::vector<std::unique_ptr<operations::Operation>>&& ops);
-
-
-    // creates all of the operations of a paritcular type to be run
-    std::vector<std::unique_ptr<operations::Operation>> create_operations(
-        PrimitiveType type,
-        const std::string& name);
-
-
-    void run_operation_on_all(PrimitiveType type, const std::string& name);
-
-    operations::OperationFactoryBase const* get_factory(const std::string_view& name) const;
+    const SchedulerStats& stats() const { return m_stats; }
 
 private:
-    wmtk::Mesh& m_mesh;
-    std::unordered_map<std::string, std::unique_ptr<operations::OperationFactoryBase>> m_factories;
-    //    tbb::enumerable_per_thread<OperationQueue> m_per_thread_queues;
-    std::vector<operations::OperationQueue> m_per_thread_queues;
+    SchedulerStats m_stats;
 };
 
 } // namespace wmtk

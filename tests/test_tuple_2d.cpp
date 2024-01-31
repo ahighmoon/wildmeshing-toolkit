@@ -1,8 +1,7 @@
 #include <stdlib.h>
+#include <wmtk/utils/trimesh_topology_initialization.h>
 #include <catch2/catch_test_macros.hpp>
 #include <iostream>
-//#include <igl/read_triangle_mesh.h>
-#include <wmtk/utils/trimesh_topology_initialization.h>
 #include <wmtk/TriMesh.hpp>
 #include <wmtk/utils/Logger.hpp>
 #include "tools/DEBUG_TriMesh.hpp"
@@ -16,7 +15,7 @@ TEST_CASE("2D_initialize", "[mesh_creation],[tuple_2d]")
     DEBUG_TriMesh m;
     RowVectors3l tris;
     tris.resize(1, 3);
-    tris.row(0) = Eigen::Matrix<long, 3, 1>{0, 1, 2};
+    tris.row(0) = Eigen::Matrix<int64_t, 3, 1>{0, 1, 2};
 
     SECTION("init with FV, FE, FF, VF, EF")
     {
@@ -49,12 +48,12 @@ TEST_CASE("2D_1_triangle", "[tuple_generation],[tuple_2d]")
     {
         const std::vector<Tuple> vertices = m.get_all(PrimitiveType::Vertex);
         REQUIRE(vertices.size() == 3);
-        CHECK(m._debug_id(vertices[0], PrimitiveType::Vertex) == 0);
-        CHECK(m._debug_id(vertices[1], PrimitiveType::Vertex) == 1);
-        CHECK(m._debug_id(vertices[2], PrimitiveType::Vertex) == 2);
-        CHECK(m._debug_id(vertices[0], PrimitiveType::Face) == 0);
-        CHECK(m._debug_id(vertices[1], PrimitiveType::Face) == 0);
-        CHECK(m._debug_id(vertices[2], PrimitiveType::Face) == 0);
+        CHECK(m.id(vertices[0], PrimitiveType::Vertex) == 0);
+        CHECK(m.id(vertices[1], PrimitiveType::Vertex) == 1);
+        CHECK(m.id(vertices[2], PrimitiveType::Vertex) == 2);
+        CHECK(m.id(vertices[0], PrimitiveType::Face) == 0);
+        CHECK(m.id(vertices[1], PrimitiveType::Face) == 0);
+        CHECK(m.id(vertices[2], PrimitiveType::Face) == 0);
     }
     SECTION("edges")
     {
@@ -65,7 +64,7 @@ TEST_CASE("2D_1_triangle", "[tuple_generation],[tuple_2d]")
     {
         const std::vector<Tuple> faces = m.get_all(PrimitiveType::Face);
         REQUIRE(faces.size() == 1);
-        CHECK(m._debug_id(faces[0], PrimitiveType::Face) == 0);
+        CHECK(m.id(faces[0], PrimitiveType::Face) == 0);
     }
 }
 
@@ -83,8 +82,8 @@ TEST_CASE("2D_2_triangles", "[tuple_generation],[tuple_2d]")
     {
         RowVectors3l tris;
         tris.resize(2, 3);
-        tris.row(0) = Eigen::Matrix<long, 3, 1>{0, 1, 2};
-        tris.row(1) = Eigen::Matrix<long, 3, 1>{2, 1, 3};
+        tris.row(0) = Eigen::Matrix<int64_t, 3, 1>{0, 1, 2};
+        tris.row(1) = Eigen::Matrix<int64_t, 3, 1>{2, 1, 3};
         m.initialize(tris);
     }
 
@@ -92,12 +91,12 @@ TEST_CASE("2D_2_triangles", "[tuple_generation],[tuple_2d]")
     {
         const std::vector<Tuple> vertices = m.get_all(PrimitiveType::Vertex);
         REQUIRE(vertices.size() == 4);
-        CHECK(m._debug_id(vertices[0], PrimitiveType::Vertex) == 0);
-        CHECK(m._debug_id(vertices[1], PrimitiveType::Vertex) == 1);
-        CHECK(m._debug_id(vertices[2], PrimitiveType::Vertex) == 2);
-        CHECK(m._debug_id(vertices[3], PrimitiveType::Vertex) == 3);
-        CHECK(m._debug_id(vertices[0], PrimitiveType::Face) == 0);
-        CHECK(m._debug_id(vertices[3], PrimitiveType::Face) == 1);
+        CHECK(m.id(vertices[0], PrimitiveType::Vertex) == 0);
+        CHECK(m.id(vertices[1], PrimitiveType::Vertex) == 1);
+        CHECK(m.id(vertices[2], PrimitiveType::Vertex) == 2);
+        CHECK(m.id(vertices[3], PrimitiveType::Vertex) == 3);
+        CHECK(m.id(vertices[0], PrimitiveType::Face) == 0);
+        CHECK(m.id(vertices[3], PrimitiveType::Face) == 1);
     }
     SECTION("edges")
     {
@@ -108,8 +107,8 @@ TEST_CASE("2D_2_triangles", "[tuple_generation],[tuple_2d]")
     {
         const std::vector<Tuple> faces = m.get_all(PrimitiveType::Face);
         REQUIRE(faces.size() == 2);
-        CHECK(m._debug_id(faces[0], PrimitiveType::Face) == 0);
-        CHECK(m._debug_id(faces[1], PrimitiveType::Face) == 1);
+        CHECK(m.id(faces[0], PrimitiveType::Face) == 0);
+        CHECK(m.id(faces[1], PrimitiveType::Face) == 1);
     }
 }
 
@@ -128,7 +127,7 @@ TEST_CASE("2D_random_switches", "[tuple_operation],[tuple_2d]")
                 case 0: t = m.switch_tuple(t, PrimitiveType::Vertex); break;
                 case 1: t = m.switch_tuple(t, PrimitiveType::Edge); break;
                 case 2:
-                    if (!m.is_boundary(t)) {
+                    if (!m.is_boundary_edge(t)) {
                         t = m.switch_tuple(t, PrimitiveType::Face);
                     }
                     break;
@@ -149,7 +148,7 @@ TEST_CASE("2D_random_switches", "[tuple_operation],[tuple_2d]")
                 case 0: t = m.switch_tuple(t, PrimitiveType::Vertex); break;
                 case 1: t = m.switch_tuple(t, PrimitiveType::Edge); break;
                 case 2:
-                    if (!m.is_boundary(t)) {
+                    if (!m.is_boundary_edge(t)) {
                         t = m.switch_tuple(t, PrimitiveType::Face);
                     }
                     break;
@@ -170,7 +169,7 @@ TEST_CASE("2D_random_switches", "[tuple_operation],[tuple_2d]")
                 case 0: t = m.switch_tuple(t, PrimitiveType::Vertex); break;
                 case 1: t = m.switch_tuple(t, PrimitiveType::Edge); break;
                 case 2:
-                    if (!m.is_boundary(t)) {
+                    if (!m.is_boundary_edge(t)) {
                         t = m.switch_tuple(t, PrimitiveType::Face);
                     }
                     break;
@@ -182,17 +181,14 @@ TEST_CASE("2D_random_switches", "[tuple_operation],[tuple_2d]")
     }
 }
 
-bool tuple_equal(const TriMesh& m, const Tuple& t0, const Tuple& t1)
+bool tuple_equal(const DEBUG_TriMesh& m, const Tuple& t0, const Tuple& t1)
 {
-    const auto l = wmtk::logger().level();
-    wmtk::logger().set_level(spdlog::level::err);
-    const long v0 = m._debug_id(t0, PrimitiveType::Vertex);
-    const long e0 = m._debug_id(t0, PrimitiveType::Edge);
-    const long f0 = m._debug_id(t0, PrimitiveType::Face);
-    const long v1 = m._debug_id(t1, PrimitiveType::Vertex);
-    const long e1 = m._debug_id(t1, PrimitiveType::Edge);
-    const long f1 = m._debug_id(t1, PrimitiveType::Face);
-    wmtk::logger().set_level(l);
+    const int64_t v0 = m.id(t0, PrimitiveType::Vertex);
+    const int64_t e0 = m.id(t0, PrimitiveType::Edge);
+    const int64_t f0 = m.id(t0, PrimitiveType::Face);
+    const int64_t v1 = m.id(t1, PrimitiveType::Vertex);
+    const int64_t e1 = m.id(t1, PrimitiveType::Edge);
+    const int64_t f1 = m.id(t1, PrimitiveType::Face);
     return (v0 == v1) && (e0 == e1) && (f0 == f1);
 }
 
@@ -215,7 +211,7 @@ TEST_CASE("2D_double_switches", "[tuple_operation],[tuple_2d]")
             CHECK(tuple_equal(m, t, t_after_v));
             const Tuple t_after_e = m.switch_edge(m.switch_edge(t));
             CHECK(tuple_equal(m, t, t_after_e));
-            if (!m.is_boundary(t)) {
+            if (!m.is_boundary_edge(t)) {
                 const Tuple t_after_f = m.switch_face(m.switch_face(t));
                 CHECK(tuple_equal(m, t, t_after_f));
             }
@@ -230,7 +226,7 @@ TEST_CASE("2D_double_switches", "[tuple_operation],[tuple_2d]")
             CHECK(tuple_equal(m, t, t_after_v));
             const Tuple t_after_e = m.switch_edge(m.switch_edge(t));
             CHECK(tuple_equal(m, t, t_after_e));
-            if (!m.is_boundary(t)) {
+            if (!m.is_boundary_edge(t)) {
                 const Tuple t_after_f = m.switch_face(m.switch_face(t));
                 CHECK(tuple_equal(m, t, t_after_f));
             }
@@ -245,7 +241,7 @@ TEST_CASE("2D_double_switches", "[tuple_operation],[tuple_2d]")
             CHECK(tuple_equal(m, t, t_after_v));
             const Tuple t_after_e = m.switch_edge(m.switch_edge(t));
             CHECK(tuple_equal(m, t, t_after_e));
-            if (!m.is_boundary(t)) {
+            if (!m.is_boundary_edge(t)) {
                 const Tuple t_after_f = m.switch_face(m.switch_face(t));
                 CHECK(tuple_equal(m, t, t_after_f));
             }
@@ -273,7 +269,7 @@ TEST_CASE("2D_switch_sequences", "[tuple_operation],[tuple_2d]")
                 m.switch_tuples_unsafe(t, {PrimitiveType::Vertex, PrimitiveType::Edge});
             CHECK(tuple_equal(m, t_long, t_short));
             CHECK(tuple_equal(m, t_long, t_short_u));
-            if (!m.is_boundary(t)) {
+            if (!m.is_boundary_edge(t)) {
                 const Tuple _t_long = m.switch_edge(m.switch_face(t));
                 const Tuple _t_short =
                     m.switch_tuples(t, {PrimitiveType::Face, PrimitiveType::Edge});
@@ -326,12 +322,12 @@ TEST_CASE("2D_one_ring_iteration", "[tuple_operation],[tuple_2d]")
     {
         RowVectors3l tris;
         tris.resize(6, 3);
-        tris.row(0) = Eigen::Matrix<long, 3, 1>{0, 1, 2};
-        tris.row(1) = Eigen::Matrix<long, 3, 1>{0, 2, 3};
-        tris.row(2) = Eigen::Matrix<long, 3, 1>{0, 3, 4};
-        tris.row(3) = Eigen::Matrix<long, 3, 1>{0, 4, 5};
-        tris.row(4) = Eigen::Matrix<long, 3, 1>{0, 5, 6};
-        tris.row(5) = Eigen::Matrix<long, 3, 1>{0, 6, 1};
+        tris.row(0) = Eigen::Matrix<int64_t, 3, 1>{0, 1, 2};
+        tris.row(1) = Eigen::Matrix<int64_t, 3, 1>{0, 2, 3};
+        tris.row(2) = Eigen::Matrix<int64_t, 3, 1>{0, 3, 4};
+        tris.row(3) = Eigen::Matrix<int64_t, 3, 1>{0, 4, 5};
+        tris.row(4) = Eigen::Matrix<int64_t, 3, 1>{0, 5, 6};
+        tris.row(5) = Eigen::Matrix<int64_t, 3, 1>{0, 6, 1};
         m.initialize(tris);
     }
 
@@ -341,7 +337,7 @@ TEST_CASE("2D_one_ring_iteration", "[tuple_operation],[tuple_2d]")
         // face-edge switch
         Tuple t_iter = t;
         for (size_t i = 0; i < 6; ++i) {
-            if (m.is_boundary(t_iter)) {
+            if (m.is_boundary_edge(t_iter)) {
                 break;
             }
             t_iter = m.switch_tuple(t_iter, PrimitiveType::Face);
@@ -350,12 +346,12 @@ TEST_CASE("2D_one_ring_iteration", "[tuple_operation],[tuple_2d]")
                 break;
             }
         }
-        CHECK((tuple_equal(m, t, t_iter) || m.is_boundary(t_iter)));
+        CHECK((tuple_equal(m, t, t_iter) || m.is_boundary_edge(t_iter)));
         // edge-face switch
         t_iter = t;
         for (size_t i = 0; i < 6; ++i) {
             t_iter = m.switch_tuple(t_iter, PrimitiveType::Edge);
-            if (m.is_boundary(t_iter)) {
+            if (m.is_boundary_edge(t_iter)) {
                 break;
             }
             t_iter = m.switch_tuple(t_iter, PrimitiveType::Face);
@@ -363,7 +359,7 @@ TEST_CASE("2D_one_ring_iteration", "[tuple_operation],[tuple_2d]")
                 break;
             }
         }
-        CHECK((tuple_equal(m, t, t_iter) || m.is_boundary(t_iter)));
+        CHECK((tuple_equal(m, t, t_iter) || m.is_boundary_edge(t_iter)));
     }
 }
 
@@ -373,7 +369,7 @@ TEST_CASE("2D_is_boundary", "[tuple_2d]")
 
     size_t n_boundary_edges = 0;
     for (const Tuple& e : m.get_all(PrimitiveType::Edge)) {
-        if (m.is_boundary(e)) {
+        if (m.is_boundary_edge(e)) {
             ++n_boundary_edges;
         }
     }
@@ -389,14 +385,14 @@ TEST_CASE("2D_is_boundary", "[tuple_2d]")
 
 
     const Tuple t1 = m.edge_tuple_between_v1_v2(0, 1, 1);
-    CHECK(m.is_boundary(t1));
+    CHECK(m.is_boundary_edge(t1));
     CHECK(m.is_boundary_vertex(t1));
 
     const Tuple t2 = m.switch_edge(t1);
-    CHECK(!m.is_boundary(t2));
+    CHECK(!m.is_boundary_edge(t2));
     CHECK(m.is_boundary_vertex(t2));
 
     const Tuple t3 = m.switch_vertex(t2);
-    CHECK(!m.is_boundary(t3));
+    CHECK(!m.is_boundary_edge(t3));
     CHECK(!m.is_boundary_vertex(t3));
 }
