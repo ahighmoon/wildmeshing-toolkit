@@ -8,7 +8,7 @@ else()
 endif()
 
 # Check required CMake version
-set(REQUIRED_CMAKE_VERSION "3.15.0")
+set(REQUIRED_CMAKE_VERSION "3.24.0")
 
 if(WILDMESHING_TOOLKIT_TOPLEVEL_PROJECT)
     cmake_minimum_required(VERSION ${REQUIRED_CMAKE_VERSION})
@@ -19,20 +19,54 @@ else()
     endif()
 endif()
 
+cmake_policy(SET CMP0135 NEW)
+
+# Enable ccache if available
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+    option(WMTK_WITH_CCACHE "Enable ccache when building WMTK" ${WILDMESHING_TOOLKIT_TOPLEVEL_PROJECT})
+else()
+    option(WMTK_WITH_CCACHE "Enable ccache when building WMTK" OFF)
+endif()
+if(WMTK_WITH_CCACHE AND CCACHE_PROGRAM)
+    set(ccacheEnv
+        CCACHE_BASEDIR=${CMAKE_BINARY_DIR}
+        CCACHE_SLOPPINESS=clang_index_store,include_file_ctime,include_file_mtime,locale,pch_defines,time_macros
+    )
+    foreach(lang IN ITEMS C CXX)
+        set(CMAKE_${lang}_COMPILER_LAUNCHER
+            ${CMAKE_COMMAND} -E env ${ccacheEnv} ${CCACHE_PROGRAM}
+        )
+    endforeach()
+endif()
+
 # ###############################################################################
-project(WildMeshingToolkit DESCRIPTION "A mesh optimization toolkit")
+project(WildMeshingToolkit DESCRIPTION "A mesh optimization toolkit" LANGUAGES C CXX)
 
 # ###############################################################################
 option(WMTK_BUILD_DOCS "Build doxygen" OFF)
+option (BUILD_SHARED_LIBS "Build Shared Libraries" OFF) # we globally want to disable this option due to use of TBB
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/recipes/")
+option(WMTK_CODE_COVERAGE "Enable coverage reporting" OFF)
+
+add_library(wmtk_coverage_config INTERFACE)
+if(WMTK_CODE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  # Add required flags (GCC & LLVM/Clang)
+  target_compile_options(wmtk_coverage_config INTERFACE
+    -g         # generate debug info
+    --coverage # sets all required flags
+  )
+  target_link_options(wmtk_coverage_config INTERFACE --coverage)
+endif()
+
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/recipes/")
 
 include(sanitizers)
+include(wmtk_cpm_cache)
 include(wmtk_colors)
 include(wmtk_warnings)
 include(wmtk_copy_dll)
-include(tracy)
 
 # Sort projects inside the solution
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -44,19 +78,30 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # WildMeshingToolkit library
 # ###############################################################################
 
+# Dependencies
+include(paraviewo)
+include(spdlog)
+include(gmp)
+include(mshio)
+include(predicates)
+include(polysolve)
+include(fast_envelope)
+include(bvh)
+include(volume_mesher)
+
 # Core library
-file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
-    "src/*.cpp"
-    "src/*.h"
-    "src/*.hpp"
-)
-message(DEBUG "SRC_FILES: ${SRC_FILES}")
-
-add_library(wildmeshing_toolkit "${SRC_FILES}")
+add_library(wildmeshing_toolkit)
 add_library(wmtk::toolkit ALIAS wildmeshing_toolkit)
+target_link_libraries(wildmeshing_toolkit PUBLIC wmtk_coverage_config)
+set_property(TARGET wildmeshing_toolkit PROPERTY COMPILE_WARNING_AS_ERROR  ON)
 
-# Include headers
-target_include_directories(wildmeshing_toolkit PUBLIC src)
+
+add_subdirectory(src)
+
+# Group source files for IDEs
+file(GLOB_RECURSE WMTK_FILES_FOR_SOURCE_GROUP "src/wmtk/*.cpp" "src/wmtk/*.h" "src/wmtk/*.hpp")
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/wmtk" PREFIX "wmtk" FILES ${WMTK_FILES_FOR_SOURCE_GROUP})
+
 
 # Compile definitions
 target_compile_definitions(wildmeshing_toolkit PUBLIC _USE_MATH_DEFINES)
@@ -65,51 +110,66 @@ target_compile_definitions(wildmeshing_toolkit PUBLIC NOMINMAX)
 # C++ standard
 target_compile_features(wildmeshing_toolkit PUBLIC cxx_std_17)
 
-# Set IDE folders
-source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src" PREFIX "Source Files" FILES ${SRC_FILES})
+#target_compile_options(wildmeshing_toolkit PUBLIC  -fconcepts)
 
-# Dependencies
-if(NOT TARGET igl::core)
-    include(libigl)
+# the max dimension an attribute can be - default is to be any size (a dynamic size), but this can be set to a number like 6
+set(WMTK_MAX_ATTRIBUTE_DIMENSION Eigen::Dynamic CACHE STRING "Set the largest size a vector can be in an attribute")
+target_compile_definitions(wildmeshing_toolkit PUBLIC WMTK_MAX_ATTRIBUTE_DIMENSION=${WMTK_MAX_ATTRIBUTE_DIMENSION})
+
+
+
+option(WMTK_USE_MONOTONIC_ATTRIBUTE_CACHE "Use monotonic allocator to store the cache buffer" OFF)
+if(WMTK_USE_MONOTONIC_ATTRIBUTE_CACHE)
+    target_compile_definitions(wildmeshing_toolkit PRIVATE WMTK_USE_MONOTONIC_ATTRIBUTE_CACHE)
 endif()
-igl_include(predicates)
 
-if(NOT TARGET spdlog)
-    include(spdlog)
+option(WMTK_ONLY_CACHE_WRITES "Cache only stores writeable data" ON)
+if(WMTK_ONLY_CACHE_WRITES)
+    target_compile_definitions(wildmeshing_toolkit PRIVATE WMTK_ONLY_CACHE_WRITES)
 endif()
 
-include(geogram)
-include(onetbb)
-include(mshio)
-include(metis)
-include(lagrange)
-include(gmp)
+option(WMTK_FLUSH_ON_FAIL "Cache where failure " ON)
+if(WMTK_FLUSH_ON_FAIL)
+    target_compile_definitions(wildmeshing_toolkit PUBLIC WMTK_FLUSH_ON_FAIL)
+endif()
+option(WMTK_ENABLE_GENERIC_CHECKPOINTS "Enable checkpoint selection" OFF)
+if(WMTK_ENABLE_GENERIC_CHECKPOINTS)
+    target_compile_definitions(wildmeshing_toolkit PRIVATE WMTK_ENABLE_GENERIC_CHECKPOINTS)
+endif()
+
 target_link_libraries(wildmeshing_toolkit PRIVATE wmtk::warnings)
 target_link_libraries(wildmeshing_toolkit PUBLIC
     spdlog::spdlog
-    igl::core
-    igl::predicates
-    geogram
-    TBB::tbb
+    paraviewo::paraviewo
+    gmp::gmp
     mshio::mshio
-    metis::metis
-    lagrange::core
-    Tracy::TracyClient
+    predicates::predicates
+    nlohmann_json::nlohmann_json
+    polysolve::polysolve
+    FastEnvelope::FastEnvelope
+    simple_bvh::simple_bvh
+    VolumeRemesher::VolumeRemesher
+
 )
+
+
+if(MSVC)
+    target_compile_options(wildmeshing_toolkit PUBLIC /MP)
+    target_compile_options(wildmeshing_toolkit PUBLIC $<$<CONFIG:RELWITHDEBINFO>:/GL>)
+endif()
+
+if(WILDMESHING_TOOLKIT_TOPLEVEL_PROJECT)
+    # Unit tests
+    enable_testing()
+endif()
+
+
+add_subdirectory(components)
+
 
 # ###############################################################################
 # Subdirectories
 # ###############################################################################
-
-# Compile extras only if this is a top-level project
-if(WILDMESHING_TOOLKIT_TOPLEVEL_PROJECT)
-    # Unit tests
-    enable_testing()
-    add_subdirectory(tests)
-
-    # Demo apps
-    add_subdirectory(app)
-endif()
 
 if(WMTK_BUILD_DOCS)
     # check if Doxygen is installed
@@ -133,4 +193,32 @@ if(WMTK_BUILD_DOCS)
     else(DOXYGEN_FOUND)
         message("Doxygen need to be installed to generate the doxygen documentation")
     endif(DOXYGEN_FOUND)
+endif()
+
+
+# Compile extras only if this is a top-level project
+if(WILDMESHING_TOOLKIT_TOPLEVEL_PROJECT)
+    add_subdirectory(tests)
+
+
+    add_executable(wmtk_app main.cpp)
+    target_compile_features(wmtk_app PUBLIC cxx_std_17)
+
+    # ###############################################################################
+    # WMTK JSON APP
+    # ###############################################################################
+    target_compile_options(wmtk_app PRIVATE "-rdynamic")
+    target_link_libraries(wmtk_app PUBLIC
+        wmtk::components
+        CLI11::CLI11
+    )
+
+
+    if(MSVC)
+        target_compile_options(wmtk_app PUBLIC /MP)
+        target_compile_options(wmtk_app PUBLIC $<$<CONFIG:RELWITHDEBINFO>:/GL>)
+        target_link_options(wmtk_app PRIVATE $<$<CONFIG:RELWITHDEBINFO>:/LTCG>)
+        target_link_options(wmtk_app PRIVATE $<$<CONFIG:RELWITHDEBINFO>:/INCREMENTAL:NO>)
+    endif()
+
 endif()
